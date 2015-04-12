@@ -8,7 +8,8 @@
 
 #include "stdafx.h"
 #include <Winsock2.h>
-#include <iostream>
+#include <process.h>
+#include <locale.h>
 #pragma comment(lib, "ws2_32.lib")
 
 #define PORT 4001
@@ -19,6 +20,14 @@ VOID ReportError(LPCTSTR UserMessage, DWORD ExitCode, BOOL PrintErrorMsg);
 BOOL PrintMsg(HANDLE hOut, LPCTSTR pMsg);
 BOOL PrintStrings(HANDLE hOut, ...);
 BOOL PrintFormat(HANDLE hOut, LPCTSTR pFormat, ...);
+
+UINT _stdcall workerThread(LPVOID lpParams);
+
+struct Params {
+	HANDLE hOut;
+	CRITICAL_SECTION & cs;
+	SOCKET sid;
+};
 
 int _tmain(int argc, _TCHAR* argv[])
 {
@@ -48,35 +57,18 @@ int _tmain(int argc, _TCHAR* argv[])
 		ReportError(NULL, WSAGetLastError(), TRUE);
 	}
 	PrintFormat(hOut, _T("Слушаю порт %1!d!\n"), PORT);
+	CRITICAL_SECTION cs;
+	InitializeCriticalSection(&cs);
+	// Главный цикл
 	while (true) {
 		SOCKET sid_new = accept(sid, NULL, NULL);
 		if (sid_new == INVALID_SOCKET) {
 			ReportError(NULL, WSAGetLastError(), TRUE);
 		}
-		long x;
-		int n = recv(sid_new, (char*)&x, sizeof x, 0);
-		if (n == SOCKET_ERROR) {
-			ReportError(NULL, WSAGetLastError(), TRUE);
-		}
-		TCHAR buf[BUF_SIZE];
-		_itot(x, buf, 2);
-
-		PrintFormat(hOut, _T("Принял %1!d!\n"), x);
-		PrintFormat(hOut, _T("Отправляю в ответ %1!s!\n"), buf);
-
-		n = send(sid_new, (char *)buf, sizeof(buf), 0);
-		if (n == SOCKET_ERROR) {
-			ReportError(NULL, WSAGetLastError(), TRUE);
-		}
-		err = shutdown(sid_new, SD_BOTH);
-		if (err == SOCKET_ERROR) {
-			ReportError(NULL, WSAGetLastError(), TRUE);
-		}
-		err = closesocket(sid_new);
-		if (err == SOCKET_ERROR) {
-			ReportError(NULL, WSAGetLastError(), TRUE);
-		}
+		Params * temp = new Params({ hOut, cs, sid_new });
+		_beginthreadex(NULL, 0, workerThread, temp, 0, 0);
 	}
+
 	err = shutdown(sid, SD_BOTH);
 	if (err == SOCKET_ERROR) {
 		ReportError(NULL, WSAGetLastError(), TRUE);
@@ -157,3 +149,34 @@ BOOL PrintStrings(HANDLE hOut, ...)
 	return TRUE;
 }
 
+UINT _stdcall workerThread(LPVOID lpParams) {
+	HANDLE hOut = ((Params*)lpParams)->hOut;
+	CRITICAL_SECTION & cs = ((Params*)lpParams)->cs;
+	SOCKET sid_new = ((Params*)lpParams)->sid;
+	delete lpParams;
+	int err;
+	long x;
+	int n = recv(sid_new, (char*)&x, sizeof x, 0);
+	if (n == SOCKET_ERROR) {
+		ReportError(NULL, WSAGetLastError(), TRUE);
+	}
+	TCHAR buf[BUF_SIZE];
+	_itot(x, buf, 2);
+	EnterCriticalSection(&cs);
+	PrintFormat(hOut, _T("Принял %1!d!\n"), x);
+	PrintFormat(hOut, _T("Отправляю в ответ %1!s!\n"), buf);
+	LeaveCriticalSection(&cs);
+	n = send(sid_new, (char *)buf, sizeof(buf), 0);
+	if (n == SOCKET_ERROR) {
+		ReportError(NULL, WSAGetLastError(), TRUE);
+	}
+	err = shutdown(sid_new, SD_BOTH);
+	if (err == SOCKET_ERROR) {
+		ReportError(NULL, WSAGetLastError(), TRUE);
+	}
+	err = closesocket(sid_new);
+	if (err == SOCKET_ERROR) {
+		ReportError(NULL, WSAGetLastError(), TRUE);
+	}
+	return 0;
+}
