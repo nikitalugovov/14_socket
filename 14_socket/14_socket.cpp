@@ -26,11 +26,9 @@ int _tmain(int argc, _TCHAR* argv[])
 	HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
 	setlocale(LC_ALL, "windows1251");
 	WSADATA wsad;
-	int err;
-	err = WSAStartup(MAKEWORD(2, 1), &wsad);
+	int err = WSAStartup(MAKEWORD(2, 1), &wsad);
 	if (err) {
-		PrintFormat(hOut, _T("Couldn't initialize sockets or something\n"));
-		return 1;
+		ReportError(_T("Не удалось инициализировать сокеты\n"), err, FALSE);
 	}
 
 	sockaddr_in addr;
@@ -39,24 +37,57 @@ int _tmain(int argc, _TCHAR* argv[])
 	addr.sin_port = htons(PORT);
 	addr.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");
 	SOCKET sid = socket(PF_INET, SOCK_STREAM, 0);
-	int binder = bind(sid, (sockaddr *)&addr, sizeof addr);
-	listen(sid, MAX_CON);
+	if (sid == INVALID_SOCKET) {
+		ReportError(NULL, WSAGetLastError(), TRUE);
+	}
+	err = bind(sid, (sockaddr *)&addr, sizeof addr);
+	if (err == SOCKET_ERROR) {
+		ReportError(NULL, WSAGetLastError(), TRUE);
+	}
+	err = listen(sid, MAX_CON);
+	if (err == SOCKET_ERROR) {
+		ReportError(NULL, WSAGetLastError(), TRUE);
+	}
 	PrintFormat(hOut, _T("Слушаю порт %1!d!\n"), PORT);
 	while (true) {
 		SOCKET sid_new = accept(sid, NULL, NULL);
+		if (sid_new == INVALID_SOCKET) {
+			ReportError(NULL, WSAGetLastError(), TRUE);
+		}
 		long x;
 		int n = recv(sid_new, (char*)&x, sizeof x, 0);
+		if (n == SOCKET_ERROR) {
+			ReportError(NULL, WSAGetLastError(), TRUE);
+		}
 		PrintFormat(hOut, _T("Принял %1!d!\n"), x);
 		TCHAR buf[BUF_SIZE];
 		_itot(x, buf, 2);
 		PrintFormat(hOut, _T("Отправляю в ответ %1!s!\n"), buf);
-		send(sid_new, (char *)buf, sizeof(buf), 0);
-		shutdown(sid_new, 2);
-		closesocket(sid_new);
+		n = send(sid_new, (char *)buf, sizeof(buf), 0);
+		if (n == SOCKET_ERROR) {
+			ReportError(NULL, WSAGetLastError(), TRUE);
+		}
+		err = shutdown(sid_new, SD_BOTH);
+		if (err == SOCKET_ERROR) {
+			ReportError(NULL, WSAGetLastError(), TRUE);
+		}
+		err = closesocket(sid_new);
+		if (err == SOCKET_ERROR) {
+			ReportError(NULL, WSAGetLastError(), TRUE);
+		}
 	}
-	shutdown(sid, 2);
-	closesocket(sid);
-	WSACleanup();
+	err = shutdown(sid, SD_BOTH);
+	if (err == SOCKET_ERROR) {
+		ReportError(NULL, WSAGetLastError(), TRUE);
+	}
+	err = closesocket(sid);
+	if (err == SOCKET_ERROR) {
+		ReportError(NULL, WSAGetLastError(), TRUE);
+	}
+	err = WSACleanup();
+	if (err == SOCKET_ERROR) {
+		ReportError(NULL, WSAGetLastError(), TRUE);
+	}
 	return 0;
 }
 
@@ -66,20 +97,21 @@ VOID ReportError(LPCTSTR UserMessage, DWORD ExitCode, BOOL PrintErrorMsg)
 	DWORD eMsgLen, LastErr = GetLastError();
 	LPTSTR lpvSysMsg;
 	HANDLE hStdErr = GetStdHandle(STD_ERROR_HANDLE);
-	PrintMsg(hStdErr, UserMessage);
+	if (UserMessage) {
+		PrintMsg(hStdErr, UserMessage);
+	}
 	if (PrintErrorMsg)
 	{
 		eMsgLen = FormatMessage(
 			FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
 			NULL, LastErr, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
 			(LPTSTR)&lpvSysMsg, 0, NULL);
-		MessageBox(NULL, lpvSysMsg, _T("Ошибка"), MB_OK);
-		//PrintStrings(hStdErr, _T("\n"), lpvSysMsg, _T("\n"), NULL);
+		//MessageBox(NULL, lpvSysMsg, _T("Ошибка"), MB_OK);
+		PrintStrings(hStdErr, lpvSysMsg, NULL);
 		LocalFree(lpvSysMsg);
 	}
 	if (ExitCode > 0)
 	{
-		getchar();
 		ExitProcess(ExitCode);
 	}
 	else
