@@ -1,6 +1,12 @@
 ﻿// 14_socket.cpp : Defines the entry point for the console application.
 //
 
+/*
+ * To-do:
+	1. Заменить вызовы std::cout на соответствующие функции windows для печати
+	2. Сделать обработку ошибок
+ */
+
 #include "stdafx.h"
 #include <Winsock2.h>
 #include <iostream>
