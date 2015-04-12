@@ -23,12 +23,13 @@ BOOL PrintFormat(HANDLE hOut, LPCTSTR pFormat, ...);
 
 int _tmain(int argc, _TCHAR* argv[])
 {
+	HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
 	setlocale(LC_ALL, "windows1251");
 	WSADATA wsad;
 	int err;
 	err = WSAStartup(MAKEWORD(2, 1), &wsad);
 	if (err) {
-		std::cout << "Couldn't initialize sockets or something" << std::endl;
+		PrintFormat(hOut, _T("Couldn't initialize sockets or something"));
 		return 1;
 	}
 
@@ -40,16 +41,16 @@ int _tmain(int argc, _TCHAR* argv[])
 	SOCKET sid = socket(PF_INET, SOCK_STREAM, 0);
 	int binder = bind(sid, (sockaddr *)&addr, sizeof addr);
 	listen(sid, MAX_CON);
-	std::cout << "Listening on port " << PORT << std::endl;
+	PrintFormat(hOut, _T("Слушаю порт %1!d!\n"), PORT);
 	while (true) {
 		SOCKET sid_new = accept(sid, NULL, NULL);
 		long x;
 		int n = recv(sid_new, (char*)&x, sizeof x, 0);
-		std::cout << "Recieved " << x << std::endl;
-		char buf[BUF_SIZE];
-		itoa(x, buf, 2);
-		std::cout << "Sending " << buf << std::endl;
-		send(sid_new, buf, sizeof buf, 0);
+		PrintFormat(hOut, _T("Принял %1!d!\n"), x);
+		TCHAR buf[BUF_SIZE];
+		_itot(x, buf, 2);
+		PrintFormat(hOut, _T("Отправляю в ответ %1!s!\n"), buf);
+		send(sid_new, (char *)buf, sizeof(buf), 0);
 		shutdown(sid_new, 2);
 		closesocket(sid_new);
 	}
