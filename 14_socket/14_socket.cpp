@@ -29,7 +29,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	int err;
 	err = WSAStartup(MAKEWORD(2, 1), &wsad);
 	if (err) {
-		PrintFormat(hOut, _T("Couldn't initialize sockets or something"));
+		PrintFormat(hOut, _T("Couldn't initialize sockets or something\n"));
 		return 1;
 	}
 
