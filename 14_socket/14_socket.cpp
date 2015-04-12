@@ -16,7 +16,10 @@
 #define MAX_CON 1
 #define BUF_SIZE 256
 
-
+VOID ReportError(LPCTSTR UserMessage, DWORD ExitCode, BOOL PrintErrorMsg);
+BOOL PrintMsg(HANDLE hOut, LPCTSTR pMsg);
+BOOL PrintStrings(HANDLE hOut, ...);
+BOOL PrintFormat(HANDLE hOut, LPCTSTR pFormat, ...);
 
 int _tmain(int argc, _TCHAR* argv[])
 {
@@ -54,5 +57,69 @@ int _tmain(int argc, _TCHAR* argv[])
 	closesocket(sid);
 	WSACleanup();
 	return 0;
+}
+
+
+VOID ReportError(LPCTSTR UserMessage, DWORD ExitCode, BOOL PrintErrorMsg)
+{
+	DWORD eMsgLen, LastErr = GetLastError();
+	LPTSTR lpvSysMsg;
+	HANDLE hStdErr = GetStdHandle(STD_ERROR_HANDLE);
+	PrintMsg(hStdErr, UserMessage);
+	if (PrintErrorMsg)
+	{
+		eMsgLen = FormatMessage(
+			FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
+			NULL, LastErr, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+			(LPTSTR)&lpvSysMsg, 0, NULL);
+		MessageBox(NULL, lpvSysMsg, _T("Ошибка"), MB_OK);
+		//PrintStrings(hStdErr, _T("\n"), lpvSysMsg, _T("\n"), NULL);
+		LocalFree(lpvSysMsg);
+	}
+	if (ExitCode > 0)
+	{
+		getchar();
+		ExitProcess(ExitCode);
+	}
+	else
+		return;
+}
+
+BOOL PrintFormat(HANDLE hOut, LPCTSTR pFormat, ...)
+{
+	LPTSTR lpBuf;
+	va_list vl;
+	va_start(vl, pFormat);
+	//_vstprintf(buf, pFormat, vl);
+	FormatMessage(
+		FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_STRING,
+		pFormat, 0, 0, (LPTSTR)&lpBuf, 0, &vl);
+	va_end(vl);
+	BOOL result = PrintMsg(hOut, lpBuf);
+	LocalFree(lpBuf);
+	return result;
+}
+
+BOOL PrintMsg(HANDLE hOut, LPCTSTR pMsg)
+{
+	return PrintStrings(hOut, pMsg, NULL);
+}
+
+BOOL PrintStrings(HANDLE hOut, ...)
+{
+	DWORD MsgLen, Count;
+	LPCTSTR pMsg;
+	va_list pMsgList;
+	va_start(pMsgList, hOut);
+	while ((pMsg = va_arg(pMsgList, LPCTSTR)) != NULL)
+	{
+		MsgLen = _tcslen(pMsg);
+		if (
+			!WriteConsole(hOut, pMsg, MsgLen, &Count, NULL) &&
+			!WriteFile(hOut, pMsg, MsgLen * sizeof(TCHAR), &Count, NULL
+			)) return FALSE;
+	}
+	va_end(pMsgList);
+	return TRUE;
 }
 
