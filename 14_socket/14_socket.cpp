@@ -58,10 +58,12 @@ int _tmain(int argc, _TCHAR* argv[])
 		if (n == SOCKET_ERROR) {
 			ReportError(NULL, WSAGetLastError(), TRUE);
 		}
-		PrintFormat(hOut, _T("Принял %1!d!\n"), x);
 		TCHAR buf[BUF_SIZE];
 		_itot(x, buf, 2);
+
+		PrintFormat(hOut, _T("Принял %1!d!\n"), x);
 		PrintFormat(hOut, _T("Отправляю в ответ %1!s!\n"), buf);
+
 		n = send(sid_new, (char *)buf, sizeof(buf), 0);
 		if (n == SOCKET_ERROR) {
 			ReportError(NULL, WSAGetLastError(), TRUE);
